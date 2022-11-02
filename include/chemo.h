@@ -1,7 +1,7 @@
 //new
 //Computational Mechanics and Multiphysics Group @ UW-Madison
-//Created 2012
-//authors: rudraa (2012, 2018)
+//Created 2020
+//authors: prakarsh 
 //
 
 #ifndef CHEMO_H_
@@ -96,9 +96,9 @@ void residualForChemo(FEValues<dim>& fe_values, unsigned int DOF, FEFaceValues<d
 	  }
 	  
 	  R[i]+=(1/dt)*fe_values.shape_value(i,q)*(phi[ci]-phi_conv[ci])*fe_values.JxW(q);
-	  //std::cout<<R[i]<<"\t";
+	 
 	  R[i]+=fe_values.shape_value(i,q)*(4./3.)*(M_phi)*(-12.0*phi[ci]*phi[ci]+12.0*phi[ci]*phi2_sum)*fe_values.JxW(q);
-	  //std::cout<<R[i]<<"\t";
+	 
 	  for(unsigned int j=0;j<dim;j++){
 	    R[i]+=(M_phi)*epsilon*fe_values.shape_grad(i,q)[j]*phi_j[ci][j]*fe_values.JxW(q);
 	   
@@ -123,59 +123,47 @@ void residualForChemo(FEValues<dim>& fe_values, unsigned int DOF, FEFaceValues<d
 	      if(ca==cb){
 		
 		local_matrix(A,B)+=fe_values.shape_value(A,q)*fe_values.shape_value(B,q)*(1.0/dt)*fe_values.JxW(q);
-		//std::cout<<"\n\n"<<local_matrix(A,B)<<"\t";
-		//std::cout<<fe_values.shape_value(A,q)<<" "<<fe_values.shape_value(B,q)<<" "<<1.0/dt<<" "<<fe_values.JxW(q)<<"\t\t";
 		local_matrix(A,B)+=M_phi*fe_values.shape_value(A,q)*fe_values.shape_value(B,q)*(4./3.)*(-24.0*phi[ca]+12.0*phi2_sum+24.0*phi[ca]*phi[ca])*fe_values.JxW(q);
-		//std::cout<<local_matrix(A,B)<<"\t";
+		
 		for(unsigned int i=0;i<dim;i++){
 		  local_matrix(A,B)+=epsilon*M_phi*fe_values.shape_grad(A,q)[i]*fe_values.shape_grad(B,q)[i]*fe_values.JxW(q);
-		  //std::cout<<local_matrix(A,B)<<"\t";
+		 
 		}
 		
 	      }
 	      else{
 		local_matrix(A,B)+=M_phi*fe_values.shape_value(A,q)*fe_values.shape_value(B,q)*(96.0/3.0)*(phi[ca]*phi[cb])*fe_values.JxW(q);
-		//std::cout<<local_matrix(A,B)<<"\t";
-		//exit(-1);
+		
 	      }
 	      
-	    }//if cj ends
+	    }//if cj block ends
 	    
-	  }//if ci ends
+	  }//if ci block ends
 	  
 	  
 	  
-	}//dofs B ends
+	}//dofs B loop ends
 	
 	
-      }//dofs A ends
+      }//dofs A loop ends
       
-      /*for(unsigned int i=0;i<dofs_per_cell;i++){
-	for(unsigned int j=0;j<dofs_per_cell;j++){
-	  std::cout<<local_matrix(i,j)<<" ";
-	}std::cout<<"\n";
-      }std::cout<<"\n\n";
-      for(unsigned int i=0;i<dofs_per_cell;i++){
-	std::cout<<R[i]<<" ";
-      }exit(-1);*/
       
     } // !isSoluteDrag statement ends here
 
     if(isSoluteDrag){
-      //std::cout<<"control here in !isSoluteDrag";exit(-1);
+     
       double W_sol=0.;
       W_sol=WA*(1.-sol) + WB*(sol);
       if(currentIncrement<=mechanicsStartIncrement){
 	W_sol=1.0;
 	M_phi=10.0*Mobility;
-	//M_sol=0.;
+       
       }
       if(currentIncrement>mechanicsStartIncrement && currentIncrement<=dragEndIncrement){
-	M_phi=0.0;// M_sol=M_alpha;
+	M_phi=0.0;
       }
       if(currentIncrement>dragEndIncrement){
 	M_phi=Mobility;
-	//M_sol=M_alpha;
       }
       if(currentIncrement<dragStartIncrement){M_sol=0.0;}
       if(currentIncrement>=dragStartIncrement && currentIncrement<=dragEndIncrement){M_sol=M_alpha;}
@@ -208,7 +196,7 @@ void residualForChemo(FEValues<dim>& fe_values, unsigned int DOF, FEFaceValues<d
 	  R[A]+=fe_values.shape_value(A,q)*mu*fe_values.JxW(q);
 
         double var=0.0;
-        var=(GA-GB)+ log(sol/(1-sol));
+        var= log(sol/(1-sol));
         R[A]-=fe_values.shape_value(A,q)*var*fe_values.JxW(q);
 
         double g_phi=0.0, phi3sum=0.0, phi2sum=0.0;

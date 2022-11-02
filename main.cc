@@ -1,8 +1,7 @@
 //new
 //Computational Mechanics and Multiphysics Group @ UW-Madison
-//Basic framework for Finite Strain Elasticity
-//Created May 2018
-//authors: rudraa (2018)
+//Created May 2020
+//authors: prakarsh (2020)
 //
 
 //deal.II headers
@@ -34,9 +33,7 @@ namespace elasticity1
 	  values(i)=0.0;
 	}
       }	
-      //std::cout<<"control here1\t";
-      //if(p.square()<0.125){values(0+dim)=1.0; values(1+dim)=0.0;}
-      //else{values(0+dim)=0.0; values(1+dim)=1.0;}
+
       
       Table<1, double>distance(n_seed_points);
       for(unsigned int i=0;i<n_seed_points;i++){
@@ -58,16 +55,16 @@ namespace elasticity1
 	  values(var+i)=0.00;
 	}
       }
-      //std::cout<<"control here2\t";
+      
       if(isSoluteDrag){
 	unsigned int var=0, N_diff_grains=n_diff_grains;
 	if(isMechanics){var=dim+N_diff_grains;}
 	if(!isMechanics){var=N_diff_grains;}
-	//std::srand(0.5);
-	values(var)=0.3+ ((double)(std::rand()%25)/100.)*0.02;//0.2 + 0.002*(0.5 -(double)(std::rand() % 100 )/100.0);
+	
+	values(var)=0.3+ ((double)(std::rand()%25)/100.)*0.02;
 	values(var+1)=0.0;
       }
-      //std::cout<<"control here3\t";
+      
     }
   };
   
@@ -86,6 +83,7 @@ namespace elasticity1
     void assemble_system ();
     void solveIteration (bool isProject=false);
     void solve ();
+    void refine_grid ();
     void output_results (const unsigned int increment, bool isProject=false);
     void l2_projection();
     void memory_usage( long double& vm_usage, double& resident_set, long& RSS);
@@ -100,8 +98,8 @@ namespace elasticity1
     DoFHandler<dim>                           dof_handler;
     IndexSet                                  locally_owned_dofs;
     IndexSet                                  locally_relevant_dofs;
-    //ConstraintMatrix                          constraints, constraints2, constraints_L2;
-    AffineConstraints<double>                 constraints, constraints2, constraints_L2;
+    //ConstraintMatrix                          constraints, constraints2, constraints_L2; // if using earlier versions of deal.II use this
+    AffineConstraints<double>                 constraints, constraints2, constraints_L2; // in accordance to deal.II 9.3.3 and after
     LA::MPI::SparseMatrix                     system_matrix, mass_matrix;
     LA::MPI::Vector                           locally_relevant_solution, U, Un, UGhost, UnGhost, dU;
     LA::MPI::Vector                           locally_relevant_solution_L2, U_L2, UGhost_L2;
@@ -330,11 +328,16 @@ namespace elasticity1
 	  if(var==1)continue;
 	  else{grain_ID.push_back(findid_j);break;}
 	}
+	//else ends
       }
-    } 
+    }
+ 
+    
   }
 
- 
+
+
+  
   
   //Setup
   template <int dim>
@@ -449,13 +452,16 @@ namespace elasticity1
 	double fractionalTime=1.0;
 	
 	if(isMechanics){
+	  
 	  residualForMechanics<dim>(fe_values,fe_face_values,cell, 0, ULocal, ULocalConv, defMap, currentIteration, history[cell], local_rhs, local_matrix, fractionalTime,freeEnergyMech, dF, dE, dF_dE, currentIncrement, grainAngle, ElasticModulus, A_phi);
-	  //std::cout<<"control here4\n";
+	  
 	}
 	
 	int var=0; if(isMechanics)var=dim;
 	residualForChemo<dim>( fe_values, var,  fe_face_values,cell, dt, ULocal, ULocalConv, local_rhs, local_matrix, jacobian ,currentIncrement, currentIteration , history[cell],freeEnergyChemBulk, freeEnergyChemGB);
 	
+	
+       
 	for(unsigned int i=0;i<dofs_per_cell;i++){
 	  local_rhs[i]=-local_rhs[i];
 	}
@@ -715,15 +721,15 @@ namespace elasticity1
   void elasticity<dim>::run (){
     //setup problem geometry and mesh
     degree_of_freedom=TotalDOF;
-    
-    
+    //pcout<<"degree_of_freedom:\t"<<degree_of_freedom;
+    //exit(-1);
     if(dim==3){
       Point<dim> p1,p2;
       p1[0]=-0.5; p1[1]=0.5; p1[2]=-0.00625;
       p2[0]=0.5; p2[1]=-0.5; p2[2]=0.00625;
       std::vector<unsigned int> repetitions;
-      repetitions.push_back(100);
-      repetitions.push_back(100);
+      repetitions.push_back(85);
+      repetitions.push_back(85);
       repetitions.push_back(1);
       GridGenerator::subdivided_hyper_rectangle (triangulation, repetitions,p1,p2,true);
     }
@@ -731,11 +737,9 @@ namespace elasticity1
       GridGenerator::hyper_cube (triangulation, -problemWidth/2.0, problemWidth/2.0, true);
       triangulation.refine_global (refinementFactor);
     }
-    //memory_usage(vm_usage, resident_set, RSS);
-    //pcout<<"after setup system "<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
+    
     grain_generation();
     setup_system ();
-    pcout<<"after adaptive refinement"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
     pcout << "   Number of active cells:       "
 	  << triangulation.n_global_active_cells()
 	  << std::endl
@@ -748,13 +752,13 @@ namespace elasticity1
     //U=0.0;
     
     materialConstants.evaluate();
-    pcout<<"\n";
     ElasticModulus=materialConstants.ElasticModulus;
     grainAngle=materialConstants.grainAngle;
     rotationMatrices=materialConstants.rotationMatrices;
     A_phi=materialConstants.A_phi;
     
     materialConstants.~properties<dim>();
+    
     VectorTools::interpolate(dof_handler, InitialConditions<dim>(&grain_seeds, &grain_ID,n_seed_points), U); Un=U;
     //sync ghost vectors to non-ghost vectors
     UGhost=U;  UnGhost=Un;
@@ -767,13 +771,24 @@ namespace elasticity1
     for (currentTime=0; currentTime<totalTime; currentTime+=dt){
       currentIncrement++;
       applyBoundaryConditions(currentIncrement);
-      
+      //memory_usage(vm_usage, resident_set, RSS);
+      //pcout<<"after boundary conditions"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
       solve();
-      
+      //memory_usage(vm_usage, resident_set, RSS);
+      //pcout<<"after solve"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
       if(currentIncrement<=mechanicsEndIncrement)output_results(currentIncrement);
+      //if(currentIncrement>10 && currentIncrement<=mechanicsEndIncrement && currentIncrement%10==0)
+      //	output_results(currentIncrement);
+      //if(currentIncrement>50 && currentIncrement<=70)output_results(currentIncrement);*/
       if(currentIncrement>dragStartIncrement && currentIncrement<=dragEndIncrement && currentIncrement%10==0)output_results(currentIncrement);
       if(currentIncrement>dragEndIncrement && currentIncrement%500==0)output_results(currentIncrement);
+      //memory_usage(vm_usage, resident_set, RSS);
+      //pcout<<"after output result"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
+      //l2_projection();
       pcout << std::endl;
+     
+      memory_usage(vm_usage, resident_set, RSS);
+      pcout<<"after adaptive refinement "<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
       pcout << "   Number of active cells:       "
           << triangulation.n_global_active_cells()
           << std::endl
@@ -793,6 +808,11 @@ int main(int argc, char *argv[]){
       using namespace elasticity1;
       Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
       elasticity<DIMS> problem;
+      //properties<DIMS> test1;
+      //std::vector<double> angles;
+      //test1.assignGrainAngle(angles);
+      //test1.testPrint();
+      //test1.run();
       
       problem.run ();
     }
