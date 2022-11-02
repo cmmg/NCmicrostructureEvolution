@@ -1,7 +1,7 @@
 //new
 //Computational Mechanics and Multiphysics Group @ UW-Madison
-//Created 2011
-//authors: rudraa (2011, 2018)
+//Created 2020
+//authors: prakarsh 
 //
 #ifndef MECHANICS_H_
 #define MECHANICS_H_
@@ -29,10 +29,7 @@ public:
 //mechanics implementation
 template <class T, int dim>
   void evaluateStress(unsigned int q, FEValues<dim>& fe_values, const unsigned int DOF, const Table<1, T>& ULocal,const Table<1, T>& ULocalConv, const deformationMap<T, dim>& defMap, unsigned int currentIteration,  std::vector<historyVariables<dim>*>& history,std::vector<double>&grainAngle,Table<1, double>&phi, Table<2, double>& secondPiola, Table<2, double>& piolaStress , Table<2, double>& cauchyStress , Table<4, double>&ElasticModulus ,Table<4, double>&ElasticTangentModulus, Table<2, double>& largeStrain,Table<2, double>& smallStrain ,FullMatrix<double>&Rotation,Table<2, double>&defGrad, double fractionalTime, double & freeEnergyMech,std::vector<double>& dF, std::vector<double>& dE, std::vector<double>& dF_dE, unsigned int & currentIncrement,Table<1, double>&h_phi, std::vector<Table<4, double> >&A_phi){ 
-  /*std::cout<<"\n\n";
-  for(unsigned int i=0;i<n_diff_grains;i++){
-    std::cout<<materialConstants.grainAngle[i]<<"\t";
-  }exit(-1);*/
+ 
   unsigned int dofs_per_cell= fe_values.dofs_per_cell;
   //update history variables at the start of increment
   if (currentIteration==0){
@@ -40,7 +37,7 @@ template <class T, int dim>
     history[q]->beta=history[q]->betaIteration;
     history[q]->Ep=history[q]->EpIteration;
   }
-  //Table<1,double> grainOrientationAngle(n_diff_grains); phi(n_diff_grains);
+ 
   //calculate OrderParameter at quadrature point
   std::vector<FullMatrix<double> >rotationMatrices;
   
@@ -59,16 +56,10 @@ template <class T, int dim>
     h_phi[i]=(1.0-cos(PI*phi[i]))/2.0;
     h_total+=h_phi[i];
   }
-
-  //assign_grain_id<dim>(grainAngle,currentIncrement);
-  //crystalRotation<dim>(phi, grainAngle, rotationMatrices);
   
-  //material properties
   Table<2,double> Fe (dim, dim);
   Table<2,double> E (dim, dim);
   Table<2,double> gradU (dim, dim);
-  
-  //Lame parameters
   
 
   for (unsigned int i=0; i<dim; ++i){
@@ -96,20 +87,7 @@ template <class T, int dim>
       cauchyStress[i][j]=0.0;
     }
   }
-  /*std::cout<<"in mechanics\n";
-  for(unsigned int N=0;N<n_diff_grains;N++){
-    for(unsigned int i=0;i<dim;i++){
-      for(unsigned int j=0;j<dim;j++){
-	for(unsigned int k=0;k<dim;k++){
-	  for(unsigned int l=0;l<dim;l++){
-	    std::cout<<A_phi[N][i][j][k][l]<<"\t";
-	  }std::cout<<" ";
-	}
-      }
-    }
-  }
-  exit(-1);*/
-  //computeRotatedModulii<dim>(ElasticModulus, rotationMatrices, A_phi);
+  
   for(unsigned int i=0;i<dim;i++)for(unsigned int j=0;j<dim;j++)for(unsigned int k=0;k<dim;k++)for(unsigned int l=0;l<dim;l++)ElasticTangentModulus[i][j][k][l]=0.;
 
   for(unsigned int N=0;N<n_diff_grains;N++){
@@ -210,31 +188,7 @@ void residualForMechanics(FEValues<dim>& fe_values,FEFaceValues<dim> & fe_face_v
   if(currentIncrement<=mechanicsStartIncrement) {Mobility_c=10.0*Mobility;}
   if(currentIncrement>mechanicsStartIncrement && currentIncrement<=dragEndIncrement){Mobility_c=0.0;}
   if(currentIncrement>dragEndIncrement){Mobility_c=Mobility;}
-  //surface boundary condition
-  //if(currentIncrement>=3 && currentIncrement<=9){
-  /*for(unsigned int faceID=0;faceID<2*dim;faceID++){
-    if(cell->face(faceID)->at_boundary()){
-      //std::cout<<"control here1";
-      if((std::abs(cell->face(faceID)->center()[0]-0.5)<1e-8)){
-	//std::cout<<"control here2";
-	fe_face_values.reinit(cell,faceID);
-	for(unsigned int I=0;I<dofs_per_cell;I++){
-	  unsigned int ci=fe_values.get_fe().system_to_component_index(I).first;
-	  if(ci>=0 && ci<dim){
-	    for(unsigned int q=0;q<n_face_q_points;q++){
-	      //std:: cout<<"control here3"; 
-	      double var=0;
-	      var=fe_face_values.shape_value(I,q)*traction[ci]*fe_face_values.JxW(q);
-	      RLocal[I]+=var;
-	      //RLocal[I]+=fe_face_values.shape_value(I,q)*traction[ci]*fe_face_values.JxW(q);		
-	      //if(var>1e-6){std::cout<<"ho gya bhai\t"<<var<<" "; exit(-1);}
-	    }
-	  }
-	}
-      }
-    }
-  }*/
-    //}*/
+
 
   for (unsigned int q=0; q<n_q_points; q++){
     Table<1, double>phi(n_diff_grains);// grainAngle(n_diff_grains);

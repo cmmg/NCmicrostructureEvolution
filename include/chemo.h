@@ -1,7 +1,6 @@
 //new
 //Computational Mechanics and Multiphysics Group @ UW-Madison
-//Created 2012
-//authors: rudraa (2012, 2018)
+//authors: prakarsh 2020
 //
 
 #ifndef CHEMO_H_

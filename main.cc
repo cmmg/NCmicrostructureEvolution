@@ -1,8 +1,8 @@
 //new
 //Computational Mechanics and Multiphysics Group @ UW-Madison
-//Basic framework for Finite Strain Elasticity
-//Created May 2018
-//authors: rudraa (2018)
+
+//Created May 2020
+//authors: prakarsh 
 //
 
 //deal.II headers
@@ -34,9 +34,7 @@ namespace elasticity1
 	  values(i)=0.0;
 	}
       }	
-      //std::cout<<"control here1\t";
-      //{values(2)=1.0; values(3)=0.0;}
-      //else{values(0)=0.0; values(1)=1.0;}
+
       
       Table<1, double>distance(n_seed_points);
       for(unsigned int i=0;i<n_seed_points;i++){
@@ -58,16 +56,16 @@ namespace elasticity1
 	  values(var+i)=0.00;
 	}
       }
-      //std::cout<<"control here2\t";
+      
       if(isSoluteDrag){
 	unsigned int var=0, N_diff_grains=n_diff_grains;
 	if(isMechanics){var=dim+N_diff_grains;}
 	if(!isMechanics){var=N_diff_grains;}
 	//std::srand(0.5);
-	values(var)=0.25;// + 0.002*(0.5 -(double)(std::rand() % 100 )/100.0);
+	values(var)=0.25;
 	values(var+1)=0.0;
       }
-      //std::cout<<"control here3\t";
+     
     }
   };
   
@@ -338,96 +336,7 @@ namespace elasticity1
     
   }
 
-  template <int dim>
-  void elasticity<dim>::refine_grid () {
-    TimerOutput::Scope t(computing_timer, "adaptiveRefinement");
-    const QGauss<dim>  quadrature_formula(2);
-    FEValues<dim> fe_values (fe, quadrature_formula,
-                             update_values    |  update_gradients |
-                             update_quadrature_points);
-    unsigned int dofs_per_cell= fe_values.dofs_per_cell;
-    unsigned int n_q_points= fe_values.n_quadrature_points;
 
-    std::vector<Vector<double> > quadSolutions;
-    for (unsigned int q=0; q<n_q_points; ++q){
-      quadSolutions.push_back(dealii::Vector<double>(TotalDOF));                                    
-    }
-   
-    bool checkForFurtherRefinement=true;
-    while (checkForFurtherRefinement) {
-      bool isMeshRefined=false;
-      typename DoFHandler<dim>::active_cell_iterator cell = dof_handler.begin_active(), endc = dof_handler.end();
-    
-      typename parallel::distributed::Triangulation<dim>::active_cell_iterator t_cell = triangulation.begin_active();
-    
-      for (;cell!=endc; ++cell) { 
-        if (cell->is_locally_owned()) {
-          fe_values.reinit (cell);
-          fe_values.get_function_values(UnGhost, quadSolutions);	  
-          
-          unsigned int current_level = t_cell->level();
-          // Mark qPoins where refinement is to be done using bool.
-          bool mark_refine = false, mark_refine_solute=false;
-             for (unsigned int q=0; q<n_q_points; ++q) {
-               Point<dim> qPoint=fe_values.quadrature_point(q);
-	       int var=0; 
-	       if(isMechanics)var=dim;
-	       double ETA=0.0;
-	       for(unsigned int i=0;i<n_diff_grains;i++){
-		 ETA+=quadSolutions[q][var+i]*quadSolutions[q][var+i];
-	       }
-	       
-               if(ETA<0.9) {
-                 mark_refine = true;
-               }
-
-             }
-
-	     
-             if ( (mark_refine  && (current_level < (maxRefinementLevel)))){
-            cell->set_refine_flag(); isMeshRefined=true; //refine                                                                              
-          }
-else if ( (mark_refine && (current_level < maxRefinementLevel))){
-            cell->set_refine_flag(); isMeshRefined=true; //refine                                                                              
-          }
-          else if (!mark_refine && (current_level > minRefinementLevel)) {
-            cell->set_coarsen_flag(); isMeshRefined=true; //coarsen previously refined                                                         
-          }
-        }
-        ++t_cell;
-      }
-      
-      //check for blocking in MPI                                                                                                              
-      double checkSum=0.0;
-      if (isMeshRefined){checkSum=1.0;}
-      checkSum= Utilities::MPI::sum(checkSum, mpi_communicator); //checkSum is greater then 0, then all processors call adative refinement sho\
-wn below                                                                                                                                       
-      
-      if (checkSum>0.0){
-        //execute refinement                                                                                                                   
-        parallel::distributed::SolutionTransfer<dim, LA::MPI::Vector> soltrans(dof_handler);
-        // prepare the triangulation,                                                                       
-        triangulation.prepare_coarsening_and_refinement();
-        // prepare the SolutionTransfer object for coarsening and refinement                                
-        // and give the solution vector that we intend to interpolate later,                                
-        soltrans.prepare_for_coarsening_and_refinement(UnGhost);
-        // actually execute the refinement,                                                         
-        triangulation.execute_coarsening_and_refinement ();
-        //reset dof's, vectors, matrices, constraints, etc. all on the new mesh.                            
-        setup_system();
-        // and interpolate all the solutions on the new mesh from the old mesh solution                 
-        soltrans.interpolate(Un);
-        U=Un; UGhost=U; UnGhost=Un;
-        UGhost.update_ghost_values();
-        UnGhost.update_ghost_values();
-        //set flag for another check of refinement                                                   
-        checkForFurtherRefinement=false;
-      }
-      else{
-        checkForFurtherRefinement=false;
-      }
-    }
-  }
 
 
   
@@ -544,17 +453,7 @@ wn below
 	
 	double fractionalTime=1.0;
 	
-	if(isMechanics){
-	  /*std::cout<<"control here3\n";
-	  for(unsigned int i=0;i<dim;i++){
-	    for(unsigned int j=0;j<dim;j++){
-	      for(unsigned int k=0;k<dim;k++){
-		for(unsigned int l=0;l<dim;l++){
-		  std::cout<<A_phi[1][i][j][k][l]<<"  ";
-		}std::cout<<" \t";
-	      }
-	    }
-	    }*/
+	if(isMechanics){  
 	  residualForMechanics<dim>(fe_values,fe_face_values,cell, 0, ULocal, ULocalConv, defMap, currentIteration, history[cell], local_rhs, local_matrix, fractionalTime,freeEnergyMech, dF, dE, dF_dE, currentIncrement, grainAngle, ElasticModulus, A_phi);
 	  //std::cout<<"control here4\n";
 	}
@@ -562,17 +461,7 @@ wn below
 	int var=0; if(isMechanics)var=dim;
 	residualForChemo<dim>( fe_values, var,  fe_face_values,cell, dt, ULocal, ULocalConv, local_rhs, local_matrix, jacobian ,currentIncrement, currentIteration , history[cell],freeEnergyChemBulk, freeEnergyChemGB);
 	
-	
-	/*for(unsigned int i=0;i<dofs_per_cell;i++){
-	  for(unsigned int j=0;j<dofs_per_cell;j++){
-	    pcout<<local_matrix(i,j)<<" ";
-	  }pcout<<"\n";
-	}
-	pcout<<"\n\n";
-	for(unsigned int i=0;i<dofs_per_cell;i++){
-          pcout<<local_rhs[i]<<" ";
-	}
-	exit(-1);*/
+       
 	for(unsigned int i=0;i<dofs_per_cell;i++){
 	  local_rhs[i]=-local_rhs[i];
 	}
@@ -846,17 +735,17 @@ wn below
       GridGenerator::hyper_cube (triangulation, -problemWidth/2.0, problemWidth/2.0, true);
       triangulation.refine_global (refinementFactor);
     }
-    memory_usage(vm_usage, resident_set, RSS);
-    pcout<<"after mesh generation "<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
+    //memory_usage(vm_usage, resident_set, RSS);
+    //pcout<<"after mesh generation "<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
     grain_generation();
-    memory_usage(vm_usage, resident_set, RSS);
-    pcout<<"after grain generation " <<"VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
+    //memory_usage(vm_usage, resident_set, RSS);
+    //pcout<<"after grain generation " <<"VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
     setup_system ();
-    memory_usage(vm_usage, resident_set, RSS);
-    pcout<<"after setup system "<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
+    //memory_usage(vm_usage, resident_set, RSS);
+    //pcout<<"after setup system "<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
     //refine_grid();
-    memory_usage(vm_usage, resident_set, RSS);
-    pcout<<"after adaptive refinement"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
+    //memory_usage(vm_usage, resident_set, RSS);
+    //pcout<<"after adaptive refinement"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
     pcout << "   Number of active cells:       "
 	  << triangulation.n_global_active_cells()
 	  << std::endl
@@ -869,19 +758,19 @@ wn below
     //U=0.0;
     
     materialConstants.evaluate();
-    memory_usage(vm_usage, resident_set, RSS);
-    pcout<<"\n\nafter class invocation"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
-    pcout<<"\n";
+    //memory_usage(vm_usage, resident_set, RSS);
+    //pcout<<"\n\nafter class invocation"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
+    //pcout<<"\n";
     ElasticModulus=materialConstants.ElasticModulus;
     grainAngle=materialConstants.grainAngle;
     rotationMatrices=materialConstants.rotationMatrices;
     A_phi=materialConstants.A_phi;
     
-    memory_usage(vm_usage, resident_set, RSS);
-    pcout<<"after variable transfer"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n\n";
+    //memory_usage(vm_usage, resident_set, RSS);
+    //pcout<<"after variable transfer"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n\n";
     materialConstants.~properties<dim>();
-    memory_usage(vm_usage, resident_set, RSS);
-    pcout<<"after destructor"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
+    //memory_usage(vm_usage, resident_set, RSS);
+    //pcout<<"after destructor"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
     //std::cout<<"control here1";
     VectorTools::interpolate(dof_handler, InitialConditions<dim>(&grain_seeds, &grain_ID,n_seed_points), U); Un=U;
     //std::cout<<"\n control after initial condotion\n";
@@ -897,22 +786,22 @@ wn below
       currentIncrement++;
       applyBoundaryConditions(currentIncrement);
       //std::cout<<"control after boundary conditions";
-      memory_usage(vm_usage, resident_set, RSS);
-      pcout<<"after boundary conditions"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
+      //memory_usage(vm_usage, resident_set, RSS);
+      //pcout<<"after boundary conditions"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
       solve();
-      memory_usage(vm_usage, resident_set, RSS);
-      pcout<<"after solve"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
+      //memory_usage(vm_usage, resident_set, RSS);
+      //pcout<<"after solve"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
       if(currentIncrement<=dragStartIncrement)output_results(currentIncrement);
       if(currentIncrement>dragStartIncrement && currentIncrement<=dragEndIncrement && currentIncrement%50==0)output_results(currentIncrement);
       if(currentIncrement>dragEndIncrement && currentIncrement%500==0)output_results(currentIncrement);
 
-      memory_usage(vm_usage, resident_set, RSS);
-      pcout<<"after output result"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
+      //memory_usage(vm_usage, resident_set, RSS);
+      //pcout<<"after output result"<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
       //l2_projection();
       pcout << std::endl;
       //refine_grid();
-      memory_usage(vm_usage, resident_set, RSS);
-      pcout<<"after adaptive refinement "<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
+      //memory_usage(vm_usage, resident_set, RSS);
+      //pcout<<"after adaptive refinement "<< "VM: "<<vm_usage<< "RSS: "<<RSS<<"\n";
       pcout << "   Number of active cells:       "
           << triangulation.n_global_active_cells()
           << std::endl
